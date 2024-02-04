@@ -1,0 +1,29 @@
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js" integrity="sha512-wUYbRPLV5zs6IqvWd88HIqZU/b8TBx+I8LEioQ/UC0t5EMCLApqhIAnUg7EsAzdbhhdgW07TqYDdH3QEXRcPOQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script type="text/javascript" src="toha-calculator.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;800&amp;family=Poppins:wght@300;600;800&amp;display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="toha-calculator.css">
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            var tc = new TohaCalulator('calc', true);
+        });
+
+    </script>
+</head>
+
+<body>
+    <div id="calc"></div>
+</body>
+
+</html>
