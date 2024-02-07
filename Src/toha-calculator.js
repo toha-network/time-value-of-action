@@ -100,7 +100,7 @@ var TohaCalulator = function (elementId, enableChart) {
                     return;
                 }
 
-                box1.content = `TVA Multiplier: x ${this.currentTva.multiplierDisplay()}`
+                box1.content = `TVA multiplier: x ${this.currentTva.multiplierDisplay()}`
 
                 // Get the start date from the x axis and difference between selected date
                 var startDate = this.dates[0].tva.dateObj();
@@ -179,7 +179,7 @@ var TohaCalulator = function (elementId, enableChart) {
                 this.chart = new Chart(ctx, {
                     type: 'line',
                     options: {
-                        events: ['mousedown', 'mouseup', 'mousemove', 'mouseout', 'touchstart', 'touchmove'],
+                        events: ['mousedown', 'mouseup', 'mousemove', 'mouseout', 'touchstart', 'touchmove', 'touchend', 'click'],
                         responsive: true,
                         maintainAspectRatio: false,
                         onResize: function (x, y) {
@@ -218,13 +218,15 @@ var TohaCalulator = function (elementId, enableChart) {
                                 case 'touchstart':
                                     dragging = true;
                                     break;
-                                case 'mouseup':
+                                case 'mousemove':
+                                case 'touchmove':
+                                    break;
+                                case 'touchend':
+                                default:
                                     dragging = false;
                                     break;
-                                case 'mousemove':
-                                    break;
                             }
-
+                            
                             if (dragging && e.type == 'mousemove' || e.type == 'touchmove') {
                                 const canvasPosition = Chart.helpers.getRelativePosition(e, this.chart);
 
@@ -251,7 +253,7 @@ var TohaCalulator = function (elementId, enableChart) {
                             newDate.setMonth(startDate.getMonth() + months);
                             this.dateInput.value = newDate.toISOString().split('T')[0]
 
-                            this.updateCalulation();
+                            debounce(this.updateCalulation(), 300);
                         },
                         plugins: {
                             legend: {
@@ -260,17 +262,6 @@ var TohaCalulator = function (elementId, enableChart) {
                             tooltip: {
                                 enabled: false
                             },
-                            // zoom: {
-                            //     zoom: {
-                            //         wheel: {
-                            //             enabled: true,
-                            //         },
-                            //         pinch: {
-                            //             enabled: true
-                            //         },
-                            //         mode: 'x',
-                            //     }
-                            // },
                             annotation: {
                                 enter(ctx) {
                                     element = ctx.element;
@@ -357,6 +348,14 @@ var TohaCalulator = function (elementId, enableChart) {
                 updateTextInput();
             });
 
+            function debounce(func, timeout = 300) {
+                let timer;
+                return (...args) => {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => { func.apply(this, args); }, timeout);
+                };
+            }
+
             const updateTextInput = () => {
                 var num = getNumber(this.displayInput.value);
                 if (isNaN(num)) { num = 0 }
@@ -371,6 +370,7 @@ var TohaCalulator = function (elementId, enableChart) {
                 this.amountInput.value = num;
                 this.amountInput.dispatchEvent(new Event('change'));
             }
+
             function getNumber(_str) {
                 var cleanStr = _str.replaceAll(',', '').replaceAll('$', '');
                 return Number.parseInt(cleanStr);
@@ -444,7 +444,7 @@ var TohaCalulator = function (elementId, enableChart) {
                     <div class="tc__pay-rate"></div>
                 </div>
                     <div class="tc__line tva ">
-                        <p>TVA Multiplier</p>
+                        <p>TVA multiplier</p>
                         <h1 class="tc__multiplier-result">x 2.015</h1>
                         <div class="tc__multiplier-toggle">Show exact TVA</div>
 
@@ -457,13 +457,13 @@ var TohaCalulator = function (elementId, enableChart) {
                     <div class="tc__disclaimer tc__md">
                     Note the TVA has been rounded for presentation purposes and is indicative only. Official calculation to be published in the upcoming TOHA white paper.
                     </div>
-                    <a href="#" class="tc__btn tc__md">Join the presale list </a>
+                    <a href="https://mahi.toha.network/#presale" class="tc__btn tc__md">Join the presale list </a>
                 </div>
 
                 <div class="tc__disclaimer tc__sm">
                     Note the TVA has been rounded for presentation purposes and is indicative only. Official calculation to be published in the upcoming TOHA white paper.
                 </div>
-                <a href="#" target="_blank" class="tc__btn tc__sm">Join the presale list</a>
+                <a href="https://mahi.toha.network/#presale" target="_blank" class="tc__btn tc__sm">Join the presale list</a>
 
             </div>
             <img src="../assets/941c27b6e3e54058a3f8eff53f32b52e/img/logo_toha_powered_long.png" class="tc__logo" />
