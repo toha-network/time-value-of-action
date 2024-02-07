@@ -2,7 +2,7 @@
 
 This calculator allows users to estimate the value of future TOHA network tokens they could swap their MAHI for based on the date and value of their investment. 
 
-[![TOHA Calculator](https://i.postimg.cc/dtwM5XR2/Screen-Recording2024-02-07at12-33-53-PM-ezgif-com-video-to-gif-converter.gif)](https://postimg.cc/hhy3j25v)
+[![TOHA Calculator](https://github.com/toha-network/time-value-of-action/blob/main/Images/calculator.gif)](https://github.com/toha-network/time-value-of-action/blob/main/Images/calculator.gif)
      
 
 ## About this calculator
@@ -30,12 +30,12 @@ The TVA calculation, and any changes made to it over time, will always be transp
 
 The TVA discount at midday on 14 February 2024 will be 50 percent. The TVA discount (in percent) for Time Credits earned after midday on 14 February 2024 will be:
 
-[![Screenshot-2024-02-07-at-1-11-01-PM.png](https://i.postimg.cc/fLr0CFrD/Screenshot-2024-02-07-at-1-11-01-PM.png)](https://postimg.cc/Q9ctx6Dy)
+[![Screenshot-2024-02-07-at-1-11-01-PM.png](https://github.com/toha-network/time-value-of-action/blob/main/Images/tva.png)](https://github.com/toha-network/time-value-of-action/blob/main/Images/tva.png)
 
 
 Toha also wants to recognise contributions made before the 14th of February. Where Toha grants Time Credits for actions before midday on 14 February 2024, the discount is 50% with an adjustment for inflation:
 
-[![Screenshot-2024-02-07-at-1-12-53-PM.png](https://i.postimg.cc/GtR9XCj0/Screenshot-2024-02-07-at-1-12-53-PM.png)](https://postimg.cc/Kk9ZYCVQ)
+[![Screenshot-2024-02-07-at-1-12-53-PM.png](https://github.com/toha-network/time-value-of-action/blob/main/Images/inflation.png)](https://github.com/toha-network/time-value-of-action/blob/main/Images/inflation.png)
 
 
 
