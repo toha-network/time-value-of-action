@@ -1,6 +1,111 @@
 var TohaCalulator = function (elementId, enableChart) {
+    // Potential TVA for a given date
+    var PotentialTVA = function (forDateTime) {
+        var obj = {
+            name: '',
+            target: null,
+            targetlocal: null,
+            anniversary: Date.UTC(2024,6,1,0,0,0), // NZT 2024-07-01T12:00:00
+            mahi: 26,
+            ratio: ((1 + Math.sqrt(5)) / 2),
+            inflation: 0.033,
+            baseRate: 0.5,
+            discount: 0,
+            multiplier: 0,
+            tohaRate: function(amount) {
+                return amount * this.mahi * this.multiplier;
+            },
+            hoursBetween: (rangeEnd, rangeStart) => {
+                var hourFromMilli = 60 * 60 * 1000;
+                return Math.floor(Math.abs(rangeEnd - rangeStart) / hourFromMilli);
+            },
+            format: {
+                ref: null,
+                discount: function() {
+                    return (this.ref.discount * 100).toFixed(3) + '%'; 
+                },
+                multiplier: function() {
+                    return this.ref.multiplier.toFixed(4);     
+                },
+                target: function() {
+                    var d = new Date(this.ref.target);
+                    var dayVal = d.getDate().toString(), day = '';
+                    var dayParts = Array.from(dayVal);
+                    switch (dayParts[dayParts.length - 1]) {
+                        case '3': {
+                            if (dayVal == "13") {
+                                day = dayVal + 'th';
+                                break;
+                            }
+                            day = dayVal + 'rd';
+                            break;
+                        }
+                        case '2': {
+                            if (dayVal == "12") {
+                                day = dayVal + 'th';
+                                break;
+                            }
+                            day = dayVal + 'nd';
+                            break;
+                        }
+                        case '1': {
+                            if (dayVal == "11") {
+                                day = dayVal + 'th';
+                                break;
+                            }
+                            day = dayVal + 'st';
+                            break;
+                        }
+                        default: {
+                            day = dayVal + 'th';
+                        }
+                    }
+                    
+                    return day + ' ' + d.toLocaleString('en-NZ', { month: 'short' }) + ' ' + d.getFullYear();
+                }
+            },
+            init: function () {
+                this.target = new Date(forDateTime.toUTC());
+                this.format.ref = this;
+    
+                var totalHours = 0,
+                    rangeTarget = null,
+                    adjustment = 0,
+                    hoursSince = null,
+                    hoursUntil = null;
+    
+                if (new Date(this.target).getTime() < new Date(this.anniversary).getTime()) {
+                    // Pre-Anniversary Formula
+                    rangeTarget = Date.UTC(2015, 11, 31, 23, 0, 0); // NZST 2016-01-01T12:00:00
+                    totalHours = this.hoursBetween(this.anniversary, rangeTarget);
+                    adjustment = (totalHours / (24 * 365)) * (Math.log(1 + this.inflation) / Math.log(this.ratio));
+                    hoursUntil = this.hoursBetween(this.anniversary, this.target);
+    
+                    this.name = 'PRE';
+                    this.discount = (this.baseRate * Math.pow(this.ratio, ((adjustment * hoursUntil) / totalHours)));
+                } else {
+                    // Post-Anniversary Formula
+                    rangeTarget = Date.UTC(2030, 11, 30, 23, 0, 0); // NZST 2030-11-31T12:00:00
+                    totalHours = this.hoursBetween(rangeTarget, this.anniversary);
+                    adjustment = 12;
+                    hoursSince = this.hoursBetween(this.target, this.anniversary);
+    
+                    this.name = 'POST';
+                    this.discount = (this.baseRate * Math.pow(this.ratio, ((-1 * adjustment * hoursSince) / totalHours)));
+                }
+    
+                this.multiplier = ((this.mahi / (1 - this.discount)) / this.mahi);
+    
+                delete this.init;
+                return this;
+            }
+        }.init();
+        return obj;
+    };
+
+    // Toha Calculator
     var obj = {
-        currentTva: {},
+        currentTVA: {},
         chart: {},
         mahiResult: 0,
         multiplierResult: 0,
@@ -8,26 +113,38 @@ var TohaCalulator = function (elementId, enableChart) {
         dateInput: '',
         amountInput: 0,
         displayInput: 0,
-        dates: [],
+        initialDate: new Date(2024, 0, 1),
+        initialDateObj: function()  { return new Date(this.initialDate.toUTCString()); },
         element: null,
         mahiMode: true,
-        showRoundedTva: true,
+        showRoundedTVA: true,
         localeOptions: {
             style: 'decimal',  // Other options: 'currency', 'percent', etc.
             minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
+            maximumFractionDigits: 2
+        },
+        localeOptionsNoDecimal: {
+            style: 'decimal',  // Other options: 'currency', 'percent', etc.
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        },
+        today: () => new Date().toISOString().split('T')[0],
+        daysBetween: (startDate, endDate) => {
+            let timeDifference = endDate.getTime() - startDate.getTime();
+            let daysDifference = Math.floor(timeDifference / (1000 * 60 * 60 * 24));   
+            return daysDifference;
         },
         today: () => new Date().toISOString().split('T')[0],
         updateCalulation: function () {
+            let creditDifferenceElement = document.querySelector('.tc__result-tag');
 
             // Calculate tomorrow's date/tva
             let today = new Date();
-            today.setHours(13);
+            today.setHours(12);
             today.setMinutes(0);
             today.setMilliseconds(0);
-            let creditDifferenceElement = document.querySelector('.tc__result-tag');
-            let todaysTva = new potentialTVA(today)
-            this.currentTva = new potentialTVA(new Date(Date.parse(this.dateInput.value)))
+            let todaysTVA = new PotentialTVA(today);
+            this.currentTVA = new PotentialTVA(new Date(Date.parse(this.dateInput.value)));
 
             // Calclulate in MAHI
             if (this.mahiMode) {
@@ -37,20 +154,20 @@ var TohaCalulator = function (elementId, enableChart) {
                 document.querySelector('.tc__mode-button').textContent = "Calculate in NZD";
                 document.querySelector('.tc__pay-rate').style.display = 'block';
 
-                var ammountYouPay = (this.currentTva.mahi * this.amountInput.value);
-                this.mahiResult.textContent = `${(Math.floor(this.amountInput.value / this.currentTva.mahi))}`;
-                this.tohaResult.textContent = `$${this.currentTva.tohaRate(this.amountInput.value).toLocaleString('en-NZ', this.localeOptions)}`;
+                let  ammountYouPay = (this.currentTVA.mahi * this.amountInput.value);
+                this.mahiResult.textContent = `${(Math.floor(this.amountInput.value / this.currentTVA.mahi))}`;
+                this.tohaResult.textContent = `$${this.currentTVA.tohaRate(this.amountInput.value).toLocaleString('en-NZ', this.localeOptions)}`;
                 this.payResult.textContent = `$${(ammountYouPay).toLocaleString('en-NZ', this.localeOptions)}`;
 
                 // If the user sets tomorrows date, show the difference for today
-                if (this.currentTva.target > today) {
-                    let todaysSwapValue = todaysTva.tohaRate(this.amountInput.value).toFixed(2);
-                    let todayDifference = todaysSwapValue - (this.currentTva.tohaRate(this.amountInput.value).toFixed(2));
-                    creditDifferenceElement.textContent = `If you invested today +$${todayDifference.toLocaleString('en-NZ', this.localeOptions)}`
-                    creditDifferenceElement.style.display = 'flex'
+                if (this.currentTVA.target > today) {
+                    let todaysSwapValue = todaysTVA.tohaRate(this.amountInput.value).toFixed(2);
+                    let todayDifference = todaysSwapValue - (this.currentTVA.tohaRate(this.amountInput.value).toFixed(2));
+                    creditDifferenceElement.textContent = `If you invested today +$${todayDifference.toLocaleString('en-NZ', this.localeOptions)}`;
+                    creditDifferenceElement.style.display = 'none'; // Hidden for V1
                 }
                 else {
-                    creditDifferenceElement.style.display = 'none'
+                    creditDifferenceElement.style.display = 'none';
                 }
             }
             // Calclulate in NZD
@@ -60,35 +177,35 @@ var TohaCalulator = function (elementId, enableChart) {
                 document.querySelector('.tc__mode-button').textContent = "Calculate in MAHI";
                 document.querySelector('.tc__pay-rate').style.display = 'none';
 
-                var ammountYouPay = ((Math.floor(this.amountInput.value / this.currentTva.mahi)) * this.currentTva.mahi);
+                let ammountYouPay = ((Math.floor(this.amountInput.value / this.currentTVA.mahi)) * this.currentTVA.mahi);
 
-                this.mahiResult.textContent = `${(Math.floor(this.amountInput.value / this.currentTva.mahi))}`;
-                this.tohaResult.textContent = `$${(ammountYouPay * this.currentTva.multiplier).toLocaleString('en-NZ', this.localeOptions)}`;
+                this.mahiResult.textContent = `${(Math.floor(this.amountInput.value / this.currentTVA.mahi))}`;
+                this.tohaResult.textContent = `$${(ammountYouPay * this.currentTVA.multiplier).toLocaleString('en-NZ', this.localeOptions)}`;
                 this.payResult.textContent = `$${(ammountYouPay).toLocaleString('en-NZ', this.localeOptionsNoDecimal)}`;
 
                 // If the user sets tomorrows date, show the difference for today
-                if (this.currentTva.target > today) {
-                    let todaysSwapValue = ammountYouPay * todaysTva.multiplier;
-                    let todayDifference = todaysSwapValue - (ammountYouPay * this.currentTva.multiplier);
-                    creditDifferenceElement.textContent = `If you invested today +$${todayDifference.toLocaleString('en-NZ', this.localeOptions)}`
-                    creditDifferenceElement.style.display = 'flex'
+                if (this.currentTVA.target > today) {
+                    let todaysSwapValue = ammountYouPay * todaysTVA.multiplier;
+                    let todayDifference = todaysSwapValue - (ammountYouPay * this.currentTVA.multiplier);
+                    creditDifferenceElement.textContent = `If you invested today +$${todayDifference.toLocaleString('en-NZ', this.localeOptions)}`;
+                    creditDifferenceElement.style.display = 'none'; // Hidden for V1
                 }
                 else {
-                    creditDifferenceElement.style.display = 'none'
+                    creditDifferenceElement.style.display = 'none';
                 }
             }
-            document.querySelector('.tc__mahi-rate').textContent = `1 MAHI = $${this.currentTva.mahi} each`;
-            document.querySelector('.tc__pay-rate').textContent = `1 MAHI = $${this.currentTva.mahi} each`;
+            document.querySelector('.tc__mahi-rate').textContent = `1 MAHI = $${this.currentTVA.mahi} each`;
+            document.querySelector('.tc__pay-rate').textContent = `1 MAHI = $${this.currentTVA.mahi} each`;
 
-            if (this.showRoundedTva) {
-                this.multiplierResult.classList.remove('small')
-                this.multiplierResult.textContent = `x ${this.currentTva.multiplierDisplay()}`;
+            if (this.showRoundedTVA) {
+                this.multiplierResult.classList.remove('small');
+                this.multiplierResult.textContent = `x ${this.currentTVA.format.multiplier()}`;
                 document.querySelector('.tc__multiplier-toggle').textContent = 'Show exact TVA';
             }
             else {
-                this.multiplierResult.classList.add('small')
+                this.multiplierResult.classList.add('small');
                 document.querySelector('.tc__multiplier-toggle').textContent = 'Show rounded TVA';
-                this.multiplierResult.textContent = `x ${this.currentTva.multiplier}`;
+                this.multiplierResult.textContent = `x ${this.currentTVA.multiplier.toFixed(16)}`;
             }
 
             if (enableChart) {
@@ -96,42 +213,98 @@ var TohaCalulator = function (elementId, enableChart) {
                 const box1 = this.chart.options.plugins.annotation.annotations.box1;
                 const line1 = this.chart.options.plugins.annotation.annotations.line1;
 
-                if (this.currentTva.multiplierDisplay() == 'NaN') {
-                    return;
-                }
+                if (this.currentTVA.format.multiplier() == 'NaN') { return; }
 
-                box1.content = `TVA multiplier: x ${this.currentTva.multiplierDisplay()}`
+                box1.content = `TVA multiplier: x ${this.currentTVA.format.multiplier()}`;
 
                 // Get the start date from the x axis and difference between selected date
-                var startDate = this.dates[0].tva.dateObj();
-                var selectedDate = new Date(Date.parse(this.dateInput.value));
-                var dateDifDays = getDayDifference(startDate, selectedDate);
+                let startDate = this.initialDateObj();
+                let selectedDate = new Date(Date.parse(this.dateInput.value));
+                let dateDifDays = this.daysBetween(startDate, selectedDate);
 
                 // Convert to the same scale as x axis (1 year = 2 on x)
-                var xPos = dateDifDays / 365;
+                let xPos = dateDifDays / 182.5;
                 line1.xMin = xPos;
                 line1.xMax = xPos;
                 box1.xValue = xPos;
 
                 // Flip label side on other half of chart so it doesn't go off canvas
-                if (xPos > 4) {
-                    box1.xAdjust = -150;
-                }
-                else {
-                    box1.xAdjust = 20;
-                }
+                box1.xAdjust = (xPos > 6) ? -150 : 20;
 
                 this.chart.update();
             }
         },
+        elementFromHtml: function(html) {
+            const template = document.createElement('template');
+            template.innerHTML = html.trim();
+            return template.content.firstElementChild;
+        },
+        template: `
+        <div class="tc__calc-container">
+            <div class="tc__row">
+                <div class="tc__card">
+                    <div class="tc__inputs">
+                        <label class="tc__amount-label" for="tc__amount">Amount of MAHI</label>
+                        <label for="tc__date">Date of investment</label>
+                        <input type="hidden" class="tc__amount-input" min="1" value="10" />
+                        <input type="text" class="tc__amount-input-display" min="1" value="10" />
+
+                        <input type="date" class="tc__date-input" />
+                        <div class="tc__mode">
+                        <a href="#" class="tc__mode-button">Calculate in NZD</a><i class="fa-solid fa-arrow-right-arrow-left"></i>
+                       </div>
+                    </div>
+                
+                    <label class="tc__chart-title">Time Value of Action (TVA)</label>
+                    <div class="tc__chart-container">
+                        <canvas class="tc__chart" id="toha-invest-chart"></canvas>
+                    </div>
+                </div>
+                <div class="tc__card tc__no-pad">
+                    <div class="tc__line mahi">
+                        <p>No. of MAHI you can buy</p>
+                        <h1 class="tc__mahi-result">$260.00</h1>
+                        <div class="tc__mahi-rate"></div>
+                    </div>
+                    <div class="tc__line  pay">
+                    <p>Amount you'll pay</p>
+                    <h1 class="tc__pay-result">$260.00</h1>
+                    <div class="tc__pay-rate"></div>
+                </div>
+                    <div class="tc__line tva ">
+                        <p>TVA multiplier</p>
+                        <h1 class="tc__multiplier-result">x 2.015</h1>
+                        <div class="tc__multiplier-toggle">Show exact TVA</div>
+
+                    </div>
+                    <div class="tc__line  no-border">
+                        <p>Future TOHA network tokens you could swap it for</p>
+                        <h1 class="tc__toha-result">$523.90</h1>
+                        <div class="tc__result-tag">If you invest today +$9,234</div>
+                    </div>
+                    <div class="tc__disclaimer tc__md">
+                    Note the TVA has been rounded for presentation purposes and is indicative only. Official calculation to be published in the upcoming TOHA white paper.
+                    </div>
+                    <a href="https://mahi.toha.network/#presale" class="tc__btn tc__md">Join the presale list </a>
+                </div>
+
+                <div class="tc__disclaimer tc__sm">
+                Note the TVA has been rounded for presentation purposes and is indicative only. Official calculation to be published in the upcoming TOHA white paper.
+                </div>
+                <a href="https://mahi.toha.network/#presale" target="_blank" class="tc__btn tc__sm">Join the presale list</a>
+
+            </div>
+            <img src="logo_toha_powered_long.png" class="tc__logo" />
+        </div>
+        `,
         init: function () {
             this.element = document.getElementById(elementId);
             if (!this.element) {
-                throw (`Unable to attach calculator to DOM element with id ${elementId}`)
+                throw (`Unable to attach calculator to DOM element with id ${elementId}`);
             }
 
             // Attach template to DOM
-            const htmlTemplateElement = elementFromHtml(this.template);
+            const htmlTemplateElement = this.elementFromHtml(this.template);
             this.element.append(htmlTemplateElement);
 
             this.displayInput = document.querySelector('.tc__amount-input-display');
@@ -148,33 +321,20 @@ var TohaCalulator = function (elementId, enableChart) {
             this.dateInput.setAttribute('min', this.today());
 
             // TVA Graph
-            var labels = [];
-            var data = [];
-            const currentDate = new Date();
-            const datesArray = [];
-
-            for (let i = 0; i < 8; i++) {
-                const nextYear = currentDate.getFullYear() + i;
-                const nextDate = new Date(nextYear, 0, currentDate.getDate());
-
-                datesArray.push({
-                    label: nextDate.getFullYear(),
-                    tva: new potentialTVA(nextDate)
-                });
+            // Fixed window from 2024 - 2030
+            const labels = [], data = [];
+            for (let d = 0; d < 7; d++) {
+                let nextYear = this.initialDateObj().getFullYear() + d;
+                labels.push('',nextYear);
+                data.push(new PotentialTVA(new Date(nextYear, 0, 1)).multiplier,
+                          new PotentialTVA(new Date(nextYear, 6, 1)).multiplier);
             }
 
-            this.dates = datesArray;
-
-            for (var ix in this.dates) {
-                labels.push(this.dates[ix].label);
-                data.push(this.dates[ix].tva.multiplier);
-            }
-
-            var dragging = false;
+            let dragging = false;
 
             // Init ChartJS
             if (enableChart) {
-                var ctx = document.getElementById('toha-invest-chart');
+                let ctx = document.getElementById('toha-invest-chart');
 
                 this.chart = new Chart(ctx, {
                     type: 'line',
@@ -192,14 +352,14 @@ var TohaCalulator = function (elementId, enableChart) {
                                 ticks: {
                                     stepSize: 0.5,
                                     suggestedMin: 1,
-                                    suggestedMax: 2,
+                                    suggestedMax: 2
                                 },
                                 border: {
-                                    display: false,
+                                    display: false
                                 },
                                 scaleLabel: {
                                     display: true,
-                                    labelString: 'Rate',
+                                    labelString: 'Rate'
                                 },
                                 grid: {
                                     display: false
@@ -225,19 +385,19 @@ var TohaCalulator = function (elementId, enableChart) {
                                 default:
                                     dragging = false;
                                     break;
+
                             }
-                            
                             if (dragging && e.type == 'mousemove' || e.type == 'touchmove') {
-                                const canvasPosition = Chart.helpers.getRelativePosition(e, this.chart);
+                                let canvasPosition = Chart.helpers.getRelativePosition(e, this.chart);
 
                                 // Substitute the appropriate scale IDs
-                                const dataX = this.chart.scales.x.getValueForPixel(canvasPosition.x);
-                                const startDate = this.dates[0].tva.dateObj();
-                                const months = dataX * 12;
-                                var newDate = startDate;
+                                let dataX = this.chart.scales.x.getValueForPixel(canvasPosition.x);
+                                let startDate = this.initialDateObj(), newDate = this.initialDateObj();
+                                let months = dataX * 6;
                                 newDate.setMonth(startDate.getMonth() + months);
-                                this.dateInput.value = newDate.toISOString().split('T')[0]
-                                this.updateCalulation();
+                                this.dateInput.value = newDate.toNZTISO();
+
+                                debounce(this.updateCalulation(), 300);
                             }
                         }
                         ,
@@ -247,30 +407,21 @@ var TohaCalulator = function (elementId, enableChart) {
 
                             // Substitute the appropriate scale IDs
                             const dataX = this.chart.scales.x.getValueForPixel(canvasPosition.x);
-                            const startDate = this.dates[0].tva.dateObj();
-                            const months = dataX * 12;
-                            var newDate = startDate;
+                            const startDate = this.initialDateObj(), newDate = this.initialDateObj();
+                            const months = dataX * 6;
                             newDate.setMonth(startDate.getMonth() + months);
-                            this.dateInput.value = newDate.toISOString().split('T')[0]
+                            this.dateInput.value = newDate.toNZTISO();
 
-                            debounce(this.updateCalulation(), 300);
+                            this.updateCalulation();
                         },
                         plugins: {
                             legend: {
-                                display: false,
+                                display: false
                             },
                             tooltip: {
                                 enabled: false
                             },
                             annotation: {
-                                enter(ctx) {
-                                    element = ctx.element;
-                                },
-                                leave(ctx, e) {
-
-                                    element = undefined;
-                                    lastEvent = undefined;
-                                },
                                 annotations: {
                                     line1: {
                                         type: 'line',
@@ -281,7 +432,7 @@ var TohaCalulator = function (elementId, enableChart) {
                                         borderWidth: 1,
                                         borderDash: [10],
                                         padding: 5,
-                                        borderColor: '#11869E',
+                                        borderColor: '#11869E'
                                     },
                                     box1: {
                                         // Indicates the type of annotation
@@ -305,7 +456,7 @@ var TohaCalulator = function (elementId, enableChart) {
                                             family: 'Hanken Grotesk, Arial, sans-serif',
                                             size: 14,
                                             weight: 'medium'
-                                        },
+                                        }
                                     }
                                 }
                             }
@@ -318,14 +469,15 @@ var TohaCalulator = function (elementId, enableChart) {
                             borderWidth: 2,
                             borderColor: '#11869E',
                             tension: 0.3,
-                            pointRadius: 0
+                            pointRadius: 0,
+                            cubicInterpolationMode: 'default'
                         }]
                     }
                 });
             }
 
             this.tvaModeButton.addEventListener("click", (e) => {
-                this.showRoundedTva = !this.showRoundedTva;
+                this.showRoundedTVA = !this.showRoundedTVA;
                 this.updateCalulation();
             });
 
@@ -338,9 +490,13 @@ var TohaCalulator = function (elementId, enableChart) {
                 if (!this.mahiMode && this.amountInput.value < 26) {
                     this.amountInput.value = 26;
                     this.displayInput.value = 26;
+                } else {
+                    this.amountInput.value = 10;
+                    this.displayInput.value = 10;
                 }
+
                 updateTextInput();
-                this.updateCalulation()
+                this.updateCalulation();
             });
 
             // Format the input with commas
@@ -410,131 +566,14 @@ var TohaCalulator = function (elementId, enableChart) {
 
             this.updateCalulation();
             return this;
-        },
-        template: `
-        <div class="tc__calc-container">
-            <div class="tc__row">
-                <div class="tc__card">
-                    <div class="tc__inputs">
-                        <label class="tc__amount-label" for="tc__amount">Amount of MAHI</label>
-                        <label for="tc__date">Date of investment</label>
-                        <input type="hidden" class="tc__amount-input" min="1" value="10" />
-                        <input type="text" class="tc__amount-input-display" min="1" value="10" />
-
-                        <input type="date" class="tc__date-input" />
-                        <div class="tc__mode">
-                        <a href="#" class="tc__mode-button">Calculate in NZD</a><i class="fa-solid fa-arrow-right-arrow-left"></i>
-                       </div>
-                    </div>
-                
-                    <label class="tc__chart-title">Time Value of Action (TVA)</label>
-                    <div class="tc__chart-container">
-                        <canvas class="tc__chart" id="toha-invest-chart"></canvas>
-                    </div>
-                </div>
-                <div class="tc__card tc__no-pad">
-                    <div class="tc__line mahi">
-                        <p>No. of MAHI you can buy</p>
-                        <h1 class="tc__mahi-result">$260.00</h1>
-                        <div class="tc__mahi-rate"></div>
-                    </div>
-                    <div class="tc__line  pay">
-                    <p>Amount you'll pay</p>
-                    <h1 class="tc__pay-result">$260.00</h1>
-                    <div class="tc__pay-rate"></div>
-                </div>
-                    <div class="tc__line tva ">
-                        <p>TVA multiplier</p>
-                        <h1 class="tc__multiplier-result">x 2.015</h1>
-                        <div class="tc__multiplier-toggle">Show exact TVA</div>
-
-                    </div>
-                    <div class="tc__line  no-border">
-                        <p>Future TOHA network tokens you could swap it for</p>
-                        <h1 class="tc__toha-result">$523.90</h1>
-                        <div class="tc__result-tag">If you invest today +$9,234</div>
-                    </div>
-                    <div class="tc__disclaimer tc__md">
-                    Note the TVA has been rounded for presentation purposes and is indicative only. Official calculation to be published in the upcoming TOHA white paper.
-                    </div>
-                    <a href="https://mahi.toha.network/#presale" class="tc__btn tc__md">Join the presale list </a>
-                </div>
-
-                <div class="tc__disclaimer tc__sm">
-                    Note the TVA has been rounded for presentation purposes and is indicative only. Official calculation to be published in the upcoming TOHA white paper.
-                </div>
-                <a href="https://mahi.toha.network/#presale" target="_blank" class="tc__btn tc__sm">Join the presale list</a>
-
-            </div>
-            <img src="../assets/941c27b6e3e54058a3f8eff53f32b52e/img/logo_toha_powered_long.png" class="tc__logo" />
-        </div>
-        `
+        }
     }.init();
+
     return obj;
 }
 
-// Helper methods
+// Helper extensions
 // -----------------------------------------------
-var potentialTVA = function (forDateTime) {
-    var obj = {
-        name: '',
-        target: null,
-        targetlocal: null,
-        anniversary: Date.UTC(2024, 1, 13, 23, 0, 0), // NZST 2024-02-14T12:00:00
-        mahi: 26,
-        ratio: ((1 + Math.sqrt(5)) / 2),
-        inflation: 0.033,
-        baseRate: 0.5,
-        discount: 0,
-        multiplier: 0,
-        tohaRate: function (amount) {
-            return amount * this.mahi * this.multiplier;
-        },
-        discountDisplay: function () { return (this.discount * 100).toFixed(3) + '%'; },
-        // Round display TVA down to four decimal places
-        multiplierDisplay: function () { return (Math.floor(this.multiplier * 10000) / 10000).toFixed(4); },
-        date: function () {
-            return DateCalcs.formatDate(this.target);
-        },
-        dateObj: function () {
-            return new Date(this.target)
-        },
-        init: function () {
-            this.target = new Date(forDateTime.toUTC());
-
-            var totalHours = 0,
-                rangeTarget = null,
-                adjustment = 0;
-
-            if (new Date(this.target).getTime() < new Date(this.anniversary).getTime()) {
-                // Pre-Anniversary Formula
-                rangeTarget = Date.UTC(2015, 11, 31, 23, 0, 0); // NZST 2016-01-01T12:00:00
-                totalHours = DateCalcs.hoursBetween(this.anniversary, rangeTarget);
-                adjustment = (totalHours / (24 * 365)) * (Math.log(1 + this.inflation) / Math.log(this.ratio));
-                hoursUntil = DateCalcs.hoursBetween(this.anniversary, this.target);
-
-                this.name = 'PRE';
-                this.discount = (this.baseRate * Math.pow(this.ratio, ((adjustment * hoursUntil) / totalHours)));
-            } else {
-                // Post-Anniversary Formula
-                rangeTarget = Date.UTC(2030, 11, 30, 23, 0, 0); // NZST 2030-11-31T12:00:00
-                totalHours = DateCalcs.hoursBetween(rangeTarget, this.anniversary);
-                adjustment = 12;
-                hoursSince = DateCalcs.hoursBetween(this.target, this.anniversary);
-
-                this.name = 'POST';
-                this.discount = (this.baseRate * Math.pow(this.ratio, ((-1 * adjustment * hoursSince) / totalHours)));
-            }
-
-            this.multiplier = ((this.mahi / (1 - this.discount)) / this.mahi);
-
-            delete this.init;
-            return this;
-        }
-    }.init();
-    return obj;
-};
-
 Date.prototype.toUTC = function () {
     var d = this;
     return Date.UTC(
@@ -547,61 +586,15 @@ Date.prototype.toUTC = function () {
     );
 };
 
-function elementFromHtml(html) {
-    const template = document.createElement('template');
-    template.innerHTML = html.trim();
-    return template.content.firstElementChild;
-}
+Date.prototype.toNZTISO = function() {
+    let d = this;
+    const intlFormat = new Intl.DateTimeFormat('en-NZ', {
+        timeZone: 'Pacific/Auckland',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
 
-function getDayDifference(startDate, endDate) {
-    var timeDifference = endDate.getTime() - startDate.getTime();
-    var daysDifference = timeDifference / (1000 * 60 * 60 * 24);
-    daysDifference = Math.floor(daysDifference);
-
-    return daysDifference;
-}
-
-var DateCalcs = {
-    hoursBetween: function (rangeEnd, rangeStart) {
-        var hourFromMilli = 60 * 60 * 1000;
-        return Math.floor(Math.abs(rangeEnd - rangeStart) / hourFromMilli);
-    },
-    formatDate: function (date) {
-        var d = new Date(date);
-
-        var dayVal = d.getDate().toString(), day = '';
-        var dayParts = Array.from(dayVal);
-        switch (dayParts[dayParts.length - 1]) {
-            case '3': {
-                if (dayVal == "13") {
-                    day = dayVal + 'th';
-                    break;
-                }
-                day = dayVal + 'rd';
-                break;
-            }
-            case '2': {
-                if (dayVal == "12") {
-                    day = dayVal + 'th';
-                    break;
-                }
-                day = dayVal + 'nd';
-                break;
-            }
-            case '1': {
-                if (dayVal == "11") {
-                    day = dayVal + 'th';
-                    break;
-                }
-                day = dayVal + 'st';
-                break;
-            }
-            default: {
-                day = dayVal + 'th';
-            }
-        }
-
-        return day + ' ' + date.toLocaleString('en-NZ', { month: 'short' }) + ' ' + d.getFullYear();
-    }
+    let dString = intlFormat.format(d).split('/');
+    return dString[2] + '-' + dString[1] + '-' + dString[0];
 };
-
